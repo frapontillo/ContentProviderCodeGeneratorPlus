@@ -52,7 +52,8 @@ public class DatabaseGenerator {
 
     public static void generate(final String fileName, final String classPackage,
             final int dbVersion, final String dbAuthorityPackage, final String classesPrefix,
-            final ArrayList<TableData> tableDataList, final String providerFolder) {
+            final ArrayList<TableData> tableDataList, final String providerFolder,
+            boolean hasProviderSubclasses) {
         if (classPackage == null || classPackage.length() == 0 || classesPrefix == null
                 || classesPrefix.length() == 0 || tableDataList == null || tableDataList.isEmpty()) {
             System.out.println("Error : You must provide a class package, a class prefix and a " +
@@ -62,7 +63,7 @@ public class DatabaseGenerator {
         generateContentClass(fileName, classPackage, classesPrefix, tableDataList, dbVersion,
                 providerFolder);
         generateProviderClass(fileName, classPackage, dbVersion, dbAuthorityPackage, classesPrefix,
-                tableDataList, providerFolder);
+                tableDataList, providerFolder, hasProviderSubclasses);
     }
 
     private static void generateContentClass(final String fileName, final String classPackage,
@@ -111,7 +112,7 @@ public class DatabaseGenerator {
             final StringBuilder sbBulkParams = new StringBuilder();
             final StringBuilder sbBulkValues = new StringBuilder();
 
-            boolean hasPreviousPrimaryKey, hasPreviousInsertFields;
+            boolean hasPreviousPrimaryKey, hasAutoIncrementPrimaryKey, hasPreviousInsertFields;
             boolean hasPreviousInsertDefaultValues, hasTextField;
             boolean hasPreviousUpgradeElements;
             int maxUpgradeVersion, minUpgradeWithoutChanges;
@@ -128,6 +129,7 @@ public class DatabaseGenerator {
                 sbBulkParams.setLength(0);
                 sbBulkValues.setLength(0);
                 hasPreviousPrimaryKey = false;
+                hasAutoIncrementPrimaryKey = false;
                 hasTextField = false;
 
                 for (int i = 0, n = tableData.fieldList.size(); i < n; i++) {
@@ -157,16 +159,28 @@ public class DatabaseGenerator {
                             .append(fieldData.dbConstantName).append(".getName() + \" \" + ")
                             .append("Columns.")
                             .append(fieldData.dbConstantName).append(".getType()");
-                    if (fieldData.dbIsAutoincrement) {
-                        sbCreateTable.append("+ \" AUTOINCREMENT\"");
-                    }
                     if (fieldData.dbIsPrimaryKey) {
-                        if (hasPreviousPrimaryKey) {
-                            sbCreateTablePrimaryKey.append(" + \", \" + ");
+                        if (fieldData.dbIsAutoincrement) {
+                            if (hasPreviousPrimaryKey) {
+                                throw new IllegalArgumentException("Not possible to have multiple" +
+                                        " primary key fields if one of them is an autoincrement " +
+                                        "field");
+                            } else {
+                                hasAutoIncrementPrimaryKey = true;
+                                sbCreateTable.append("+ \" PRIMARY KEY AUTOINCREMENT\"");
+                            }
+                        } else if (hasAutoIncrementPrimaryKey) {
+                            throw new IllegalArgumentException("Not possible to have multiple" +
+                                    " primary key fields if one of them is an autoincrement " +
+                                    "field");
+                        } else {
+                            if (hasPreviousPrimaryKey) {
+                                sbCreateTablePrimaryKey.append(" + \", \" + ");
+                            }
+                            hasPreviousPrimaryKey = true;
+                            sbCreateTablePrimaryKey.append("Columns.")
+                                    .append(fieldData.dbConstantName).append(".getName()");
                         }
-                        hasPreviousPrimaryKey = true;
-                        sbCreateTablePrimaryKey.append("Columns.")
-                                .append(fieldData.dbConstantName).append(".getName()");
                     }
 
                     if (fieldData.dbHasIndex) {
@@ -208,7 +222,7 @@ public class DatabaseGenerator {
                         sbEnumFields.append(",\n");
                         sbProjection.append(",\n");
                         sbCreateTable.append(" + \", \" + ");
-                        if (!fieldData.dbSkipBulkInsert) {
+                        if (!fieldData.dbSkipBulkInsert && !fieldData.dbIsAutoincrement) {
                             sbBulkFields.append(".append(\", \")");
                             sbBulkParams.append(", ");
                         }
@@ -374,7 +388,8 @@ public class DatabaseGenerator {
 
     private static void generateProviderClass(final String fileName, final String classPackage,
             final int dbVersion, final String dbAuthorityPackage, final String classesPrefix,
-            final ArrayList<TableData> tableDataList, final String providerFolder) {
+            final ArrayList<TableData> tableDataList, final String providerFolder,
+            boolean hasProviderSubclasses) {
 
         final StringBuilder sbImports = new StringBuilder();
         final StringBuilder sbUriTypes = new StringBuilder();
@@ -386,7 +401,7 @@ public class DatabaseGenerator {
         final StringBuilder sbUpgradeDatabaseComment = new StringBuilder();
         final StringBuilder sbUpgradeDatabaseCommentFields = new StringBuilder();
 
-        int minUpgradeWithoutChanges = 1;
+        int minUpgradeWithoutChanges;
 
         String bulkText;
         final StringBuilder sb = new StringBuilder();
@@ -521,7 +536,7 @@ public class DatabaseGenerator {
                 sbImports.toString(), classesPrefix, dbAuthorityPackage, sbUriTypes.toString(),
                 sbCreateTables.toString(), sbUpgradeTables.toString(), sbCaseWithId.toString(),
                 sbCaseWithoutId.toString(), sbBulk.toString(), providerFolder, dbVersion,
-                sbUpgradeDatabaseComment.toString()));
+                sbUpgradeDatabaseComment.toString(), hasProviderSubclasses ? "" : "final "));
 
     }
 

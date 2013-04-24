@@ -13,6 +13,8 @@
                 in the Content class. Useful if you also have a model class with the same name as
                 your table (They will be named DbMyClass and MyClass instead of both MyClass).
                 Default is "".
+        "has_subclasses":false, // Optional. Whether the generated provider has subclasses. This
+                will remove the final keyword and change some fields to protected
         "version":1 // Required. Version of the database.
     },
     "tables":[ // your tables
@@ -32,8 +34,9 @@
                     "is_id":true, // Optional. Whether the field is the identifier field of the
                             class. The column named will be changed to BaseColumns._ID in the
                             database. Only one field should have this value set to true by table.
-                            Default is false.
-                    "is_autoincrement":false // Optional. Can only be set on the field flagged with
+                            Default is false. Can only be set on a field flagged with
+                            "is_primary_key".
+                    "is_autoincrement":false // Optional. Can only be set on a field flagged with
                             "is_id". Whether or not the field should be autoincremented.
                     "is_index":true, // Optional. Whether the field needs to have an index added to
                             it in the database. Should be set to true for text field which will
